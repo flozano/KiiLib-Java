@@ -1,7 +1,22 @@
-/*
-apply plugin: 'java'
+subprojects {
 
-task wrapper(type: Wrapper){
-    gradleVersion = '1.10'
+    repositories {
+        mavenCentral()
+    }
+    group = 'io.github.flozano'
+
 }
-*/
+
+ext {
+    Meta = [
+            desc          : "Kii-Lib",
+            license       : "Apache-2.0",
+            licenseUrl    : "https://opensource.org/licenses/Apache-2.0",
+            githubRepo    : "flozano/KiiLib-Java",
+            release       : "https://s01.oss.sonatype.org/service/local/",
+            snapshot      : "https://s01.oss.sonatype.org/content/repositories/snapshots/",
+            developerId   : "flozano",
+            developerName : "Francisco A. Lozano",
+            developerEmail: "flozano+kiilib@gmail.com"
+    ]
+}
