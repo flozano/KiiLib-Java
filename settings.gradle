@@ -1,1 +1,11 @@
-include ':kiilib'
+plugins {
+    id('org.ajoberstar.reckon.settings') version '0.18.3'
+}
+reckon {
+    defaultInferredScope = 'patch'
+    snapshots()
+    scopeCalc = calcScopeFromProp().or(calcScopeFromCommitMessages())
+    stageCalc = calcStageFromProp()
+}
+
+include 'kiilib'
