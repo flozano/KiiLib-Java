@@ -1,21 +1,37 @@
 package jp.fkmsoft.libs.kiilib.entities;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Just for name
+ * Describes object in Kii Cloud
  */
-public class KiiObject extends KiiBaseObject<KiiBucket> {
-    public KiiObject(KiiBucket bucket) {
-        super(bucket);
-    }
+public interface KiiObject extends KiiEntity, AccessControllable {
+    /**
+     * Gets object version
+     * @return Object version
+     */
+    String getVersion();
 
-    public KiiObject(KiiBucket bucket, String id) {
-        super(bucket, id);
-    }
+    /**
+     * Sets object version
+     * @param version Object version
+     */
+    void setVersion(String version);
 
-    public KiiObject(KiiBucket bucket, JSONObject from) throws JSONException {
-        super(bucket, from);
-    }
+    /**
+     * Updates fields
+     * @param fields Fields
+     */
+    void updateFields(JSONObject fields);
+
+    /**
+     * Sets modified time
+     * @param value Modified time
+     */
+    void setModifiedTime(long value);
+
+    /**
+     * @return JSONObject
+     */
+    JSONObject toJson();
 }

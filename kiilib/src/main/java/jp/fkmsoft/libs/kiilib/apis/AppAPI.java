@@ -1,50 +1,43 @@
 package jp.fkmsoft.libs.kiilib.apis;
 
-import org.json.JSONObject;
-
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseBucket;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseGroup;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseObject;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseTopic;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseUser;
+import jp.fkmsoft.libs.kiilib.entities.KiiDTO;
+import jp.fkmsoft.libs.kiilib.entities.KiiUser;
 
 /**
  * Provides Kii API
- * @author fkm
- *
  */
-public interface AppAPI<
-        USER extends KiiBaseUser,
-        GROUP extends KiiBaseGroup<USER>,
-        BUCKET extends KiiBaseBucket,
-        OBJECT extends KiiBaseObject<BUCKET>,
-        TOPIC extends KiiBaseTopic
-        > {
-    public interface LoginCallback<T extends KiiBaseUser> extends KiiCallback {
+public interface AppAPI {
+
+    /**
+     * Logs in Kii Cloud as App Admin
+     * @param clientId Client ID
+     * @param clientSecret Client Secret
+     * @param dto DTO for creating KiiUser
+     * @param callback Callback object
+     */
+    <T extends KiiUser> void loginAsAdmin(String clientId, String clientSecret, KiiDTO<T> dto, LoginCallback<T> callback);
+
+    /**
+     * Logs in Kii Cloud as App user
+     * @param identifier Username or email or phone
+     * @param password Password
+     * @param dto DTO for creating KiiUser
+     * @param callback Callback object
+     */
+    <T extends KiiUser> void loginAsUser(String identifier, String password, KiiDTO<T> dto, LoginCallback<T> callback);
+
+    /**
+     * Signs up Kii Cloud
+     * @param info User info to be created.
+     * @param password User password
+     * @param dto DTO for creating KiiUser
+     * @param callback Callback object
+     */
+    <T extends KiiUser> void signup(SignupInfo info, String password, KiiDTO<T> dto, SignupCallback<T> callback);
+
+    interface LoginCallback<T extends KiiUser> extends KiiCallback {
         void onSuccess(String token, T user);
     }
-    void loginAsAdmin(String clientId, String clientSecret, LoginCallback<USER> callback);
-    
-    void loginAsUser(String identifier, String password, LoginCallback<USER> callback);
-    
-    public interface SignupCallback<T extends KiiBaseUser> extends KiiCallback {
-        void onSuccess(T user);
-    }
-    void signup(JSONObject info, String password, SignupCallback<USER> callback);
-    
-    void setAccessToken(String accessToken);
-    
-    String getAccessToken();
-    
-    UserAPI<USER> userAPI();
-    
-    GroupAPI<USER, GROUP> groupAPI();
-    
-    BucketAPI<BUCKET, OBJECT> bucketAPI();
-    
-    ObjectAPI<BUCKET, OBJECT> objectAPI();
-    
-    TopicAPI<TOPIC> topicAPI();
-    
-    ACLAPI aclAPI();
+
+    interface SignupCallback<T extends KiiUser> extends KiiItemCallback<T> { }
 }

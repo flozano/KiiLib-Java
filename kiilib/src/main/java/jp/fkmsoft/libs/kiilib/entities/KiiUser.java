@@ -1,10 +1,7 @@
 package jp.fkmsoft.libs.kiilib.entities;
 
 /**
- * Just for name
+ * Describes user entity in Kii Cloud
  */
-public class KiiUser extends KiiBaseUser {
-    public KiiUser(String id) {
-        super(id);
-    }
+public interface KiiUser extends KiiEntity, BucketOwnable, ACLSubject {
 }

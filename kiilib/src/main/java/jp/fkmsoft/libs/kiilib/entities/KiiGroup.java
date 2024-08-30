@@ -1,14 +1,7 @@
 package jp.fkmsoft.libs.kiilib.entities;
 
 /**
- * Just for name
+ * Describes group entity in Kii Cloud
  */
-public class KiiGroup extends KiiBaseGroup<KiiUser> {
-    public KiiGroup(String id) {
-        super(id);
-    }
-
-    public KiiGroup(String id, String name, KiiUser owner) {
-        super(id, name, owner);
-    }
+public interface KiiGroup extends KiiEntity, BucketOwnable, AccessControllable, ACLSubject {
 }

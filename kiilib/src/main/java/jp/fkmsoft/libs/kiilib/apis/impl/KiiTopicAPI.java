@@ -1,90 +1,94 @@
 package jp.fkmsoft.libs.kiilib.apis.impl;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import jp.fkmsoft.libs.kiilib.apis.KiiException;
+import jp.fkmsoft.libs.kiilib.apis.KiiResponseHandler;
+import jp.fkmsoft.libs.kiilib.apis.KiiTopicMessage;
 import jp.fkmsoft.libs.kiilib.apis.TopicAPI;
+import jp.fkmsoft.libs.kiilib.client.KiiHTTPClient;
 import jp.fkmsoft.libs.kiilib.entities.BucketOwnable;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseTopic;
-import jp.fkmsoft.libs.kiilib.entities.KiiTopicFactory;
-import jp.fkmsoft.libs.kiilib.entities.KiiTopicMessage;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient.Method;
+import jp.fkmsoft.libs.kiilib.entities.KiiContext;
+import jp.fkmsoft.libs.kiilib.entities.KiiTopic;
+import jp.fkmsoft.libs.kiilib.entities.KiiTopicDTO;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+public class KiiTopicAPI implements TopicAPI {
 
-class KiiTopicAPI<TOPIC extends KiiBaseTopic> implements TopicAPI<TOPIC> {
+    private final KiiContext mContext;
 
-    private final KiiAppAPI api;
-    private final KiiTopicFactory<TOPIC> mFactory;
-    
-    KiiTopicAPI(KiiAppAPI api, KiiTopicFactory<TOPIC> factory) {
-        this.api = api;
-        this.mFactory = factory;
+    public KiiTopicAPI(KiiContext context) {
+        mContext = context;
     }
-    
+
     @Override
-    public void create(final BucketOwnable owner, final String name, final TopicCallback<TOPIC> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + owner.getResourcePath() + "/topics/" + name;
+    public <T extends KiiTopic> void create(final BucketOwnable owner, final String name, final KiiTopicDTO<T> dto, TopicCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + owner.getResourcePath() + "/topics/" + name;
         
-        api.getHttpClient().sendJsonRequest(Method.PUT, url, api.accessToken, null, null, null, new KiiResponseHandler<TopicCallback<TOPIC>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.PUT, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<TopicCallback<T>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, TopicCallback<TOPIC> callback) {
-                callback.onSuccess(mFactory.create(owner, name));
+            protected void onSuccess(JSONObject response, String etag, TopicCallback<T> callback) {
+                callback.onSuccess(dto.fromJson(owner, name));
             }
         });
     }
 
     @Override
-    public void subscribe(final TOPIC topic, final TopicCallback<TOPIC> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + topic.getResourcePath() + "/push/subscriptions/users";
+    public void subscribe(final KiiTopic topic, TopicCallback<KiiTopic> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + topic.getResourcePath() + "/push/subscriptions/users";
         
-        api.getHttpClient().sendJsonRequest(Method.POST, url, api.accessToken, null, null, null, new KiiResponseHandler<TopicCallback<TOPIC>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<TopicCallback<KiiTopic>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, TopicCallback<TOPIC> callback) {
+            protected void onSuccess(JSONObject response, String etag, TopicCallback<KiiTopic> callback) {
                 callback.onSuccess(topic);
             }
         });
     }
 
     @Override
-    public void unsubscribe(final TOPIC topic, String userId, TopicCallback<TOPIC> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + topic.getResourcePath() + "/push/subscriptions/users/" + userId;
+    public void unsubscribe(final KiiTopic topic, String userId, TopicCallback<KiiTopic> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + topic.getResourcePath() + "/push/subscriptions/users/" + userId;
 
-        api.getHttpClient().sendJsonRequest(Method.DELETE, url, api.accessToken, null, null, null, new KiiResponseHandler<TopicCallback<TOPIC>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.DELETE, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<TopicCallback<KiiTopic>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, TopicCallback<TOPIC> callback) {
+            protected void onSuccess(JSONObject response, String etag, TopicCallback<KiiTopic> callback) {
                 callback.onSuccess(topic);
             }
         });
     }
-    
+
     @Override
-    public void getList(final BucketOwnable owner, final TopicListCallback<TOPIC> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + owner.getResourcePath() + "/topics";
+    public <T extends KiiTopic> void getList(final BucketOwnable owner, final KiiTopicDTO<T> dto, TopicListCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + owner.getResourcePath() + "/topics";
         
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("accept", "application/vnd.kii.TopicsRetrievalResponse+json");
         
-        api.getHttpClient().sendJsonRequest(Method.GET, url, api.accessToken, null, headers, null, new KiiResponseHandler<TopicListCallback<TOPIC>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.GET, url, mContext.getAccessToken(), null, headers, null, new KiiResponseHandler<TopicListCallback<T>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, TopicListCallback<TOPIC> callback) {
+            protected void onSuccess(JSONObject response, String etag, TopicListCallback<T> callback) {
                 try {
                     JSONArray array = response.getJSONArray("topics");
-                    callback.onSuccess(toList(array));
+                    callback.onSuccess(toList(array, dto));
                 } catch (JSONException e) {
-                    callback.onError(e);
+                    callback.onError(new KiiException(599, e));
                 }
             }
             
-            private List<TOPIC> toList(JSONArray array) throws JSONException {
-                List<TOPIC> list = new ArrayList<TOPIC>(array.length());
+            private List<T> toList(JSONArray array, KiiTopicDTO<T> dto) throws JSONException {
+                List<T> list = new ArrayList<T>(array.length());
                 for (int i = 0 ; i < array.length() ; ++i) {
                     JSONObject obj = array.getJSONObject(i);
-                    list.add(mFactory.create(owner, obj.getString("topicID")));
+                    String topicName = obj.optString("topicID", null);
+                    if (topicName != null) {
+                        list.add(dto.fromJson(owner, topicName));
+                    }
                 }
                 return list;
             }
@@ -93,18 +97,17 @@ class KiiTopicAPI<TOPIC extends KiiBaseTopic> implements TopicAPI<TOPIC> {
     }
 
     @Override
-    public void sendMessage(TOPIC topic, KiiTopicMessage message, final SendMessageCallback callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + topic.getResourcePath() + "/push/messages";
+    public void sendMessage(KiiTopic topic, KiiTopicMessage message, SendMessageCallback callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + topic.getResourcePath() + "/push/messages";
         
-        api.getHttpClient().sendJsonRequest(Method.POST, url, api.accessToken,
-                "application/vnd.kii.SendPushMessageRequest+json", null, message.toJson(), new KiiResponseHandler<SendMessageCallback>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, mContext.getAccessToken(), "application/vnd.kii.SendPushMessageRequest+json", null, message.toJson(), new KiiResponseHandler<SendMessageCallback>(callback) {
             @Override
             protected void onSuccess(JSONObject response, String etag, SendMessageCallback callback) {
                 try {
                     String id = response.getString("pushMessageID");
                     callback.onSuccess(id);
                 } catch (JSONException e) {
-                    callback.onError(e);
+                    callback.onError(new KiiException(599, e));
                 }
             }
         });

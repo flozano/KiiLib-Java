@@ -1,23 +1,29 @@
 package jp.fkmsoft.libs.kiilib.apis;
 
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseBucket;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseObject;
-import jp.fkmsoft.libs.kiilib.entities.QueryParams;
+import jp.fkmsoft.libs.kiilib.entities.KiiBucket;
+import jp.fkmsoft.libs.kiilib.entities.KiiObject;
+import jp.fkmsoft.libs.kiilib.entities.KiiObjectDTO;
 
 /**
- * Provides bucket API. To get this instance, Please call {@link AppAPI#bucketAPI()}
- * @author fkm
- *
+ * Provides bucket API.
  */
-public interface BucketAPI<BUCKET extends KiiBaseBucket, OBJECT extends KiiBaseObject<BUCKET>> {
-    public interface QueryCallback<T extends KiiBaseBucket, U extends KiiBaseObject<T>> extends KiiCallback {
-        void onSuccess(QueryResult<T, U> result);
-    }
-    void query(BUCKET bucket, QueryParams params, QueryCallback<BUCKET, OBJECT> callback);
-    
-    public interface BucketCallback<U extends KiiBaseBucket> extends KiiCallback {
-        void onSuccess(U bucket);
-    }
-    
-    void delete(BUCKET bucket, BucketCallback<BUCKET> callback);
+public interface BucketAPI {
+    /**
+     * Queries objects.
+     * @param bucket Target bucket.
+     * @param params Parameters.
+     * @param dto DTO for Kii Object.
+     * @param callback Callback object.
+     * @param <T> Type of Kii Object.
+     */
+    <T extends KiiObject> void query(KiiBucket bucket, QueryParams params, KiiObjectDTO<T> dto, QueryCallback<T> callback);
+
+    /**
+     * Deletes bucket
+     * @param bucket Target bucket
+     * @param callback Callback object.
+     */
+    void delete(KiiBucket bucket, KiiItemCallback<Void> callback);
+
+    interface QueryCallback<T extends KiiObject> extends KiiItemCallback<QueryResult<T>> { }
 }

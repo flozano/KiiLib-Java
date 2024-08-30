@@ -1,5 +1,9 @@
 package jp.fkmsoft.libs.kiilib.apis.impl;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -7,165 +11,173 @@ import java.util.List;
 import java.util.Map;
 
 import jp.fkmsoft.libs.kiilib.apis.GroupAPI;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseGroup;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseUser;
-import jp.fkmsoft.libs.kiilib.entities.KiiGroupFactory;
-import jp.fkmsoft.libs.kiilib.entities.KiiUserFactory;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient.Method;
+import jp.fkmsoft.libs.kiilib.apis.KiiException;
+import jp.fkmsoft.libs.kiilib.apis.KiiItemCallback;
+import jp.fkmsoft.libs.kiilib.apis.KiiResponseHandler;
+import jp.fkmsoft.libs.kiilib.client.KiiHTTPClient;
+import jp.fkmsoft.libs.kiilib.entities.KiiContext;
+import jp.fkmsoft.libs.kiilib.entities.KiiDTO;
+import jp.fkmsoft.libs.kiilib.entities.KiiGroup;
+import jp.fkmsoft.libs.kiilib.entities.KiiUser;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+public class KiiGroupAPI implements GroupAPI {
 
-class KiiGroupAPI<USER extends KiiBaseUser, GROUP extends KiiBaseGroup<USER>> implements GroupAPI<USER, GROUP> {
+    private final KiiContext mContext;
 
-    private final KiiAppAPI api;
-    private final KiiUserFactory<USER> mUserFactory;
-    private final KiiGroupFactory<USER, GROUP> mGroupFactory;
-
-    KiiGroupAPI(KiiAppAPI api, KiiUserFactory<USER> userFactory, KiiGroupFactory<USER, GROUP> groupFactory) {
-        this.api = api;
-        this.mUserFactory = userFactory;
-        this.mGroupFactory = groupFactory;
-    }
-    
-    @Override
-    public void getOwnedGroup(USER user, final ListCallback<GROUP> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + "/groups?owner=" + user.getId();
-        getGroup(url, callback);
+    public KiiGroupAPI(KiiContext context) {
+        mContext = context;
     }
 
     @Override
-    public void getJoinedGroup(USER user, ListCallback<GROUP> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + "/groups?is_member=" + user.getId();
-        getGroup(url, callback);
+    public <T extends KiiGroup> void getOwnedGroup(KiiUser user, KiiDTO<T> dto, GroupListCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + "/groups?owner=" + user.getId();
+        getGroup(url, dto, callback);
+    }
+
+    @Override
+    public <T extends KiiGroup> void getJoinedGroup(KiiUser user, KiiDTO<T> dto, GroupListCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + "/groups?is_member=" + user.getId();
+        getGroup(url, dto, callback);
     }
     
-    private void getGroup(String url, final ListCallback<GROUP> callback) {
+    private <T extends KiiGroup> void getGroup(String url, final KiiDTO<T> dto, final GroupListCallback<T> callback) {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("accept", "application/vnd.kii.GroupsRetrievalResponse+json");
         
-        api.getHttpClient().sendJsonRequest(Method.GET, url, api.accessToken, 
-                null, headers, null, new KiiResponseHandler<ListCallback<GROUP>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.GET, url, mContext.getAccessToken(), null, headers, null, new KiiResponseHandler<GroupListCallback<T>>(callback) {
 
             @Override
-            protected void onSuccess(JSONObject response, String etag, ListCallback<GROUP> callback) {
+            protected void onSuccess(JSONObject response, String etag, GroupListCallback<T> callback) {
                 try {
                     JSONArray array = response.getJSONArray("groups");
-                    List<GROUP> result = new ArrayList<GROUP>(array.length());
-                    for (int i = 0 ; i < array.length() ; ++i) {
+                    List<T> result = new ArrayList<T>(array.length());
+                    for (int i = 0; i < array.length(); ++i) {
                         JSONObject json = array.getJSONObject(i);
-                        String id = json.getString("groupID");
-                        String name = json.getString("name");
-                        String owner = json.getString("owner");
-                        result.add(mGroupFactory.create(id, name, mUserFactory.create(owner)));
+//                        String id = json.getString("groupID");
+//                        String name = json.getString("name");
+//                        String owner = json.getString("owner");
+                        result.add(dto.fromJson(json));
                     }
-                    
+
                     callback.onSuccess(result);
                 } catch (JSONException e) {
-                    callback.onError(e);
+                    callback.onError(new KiiException(599, e));
                 }
             }
         });
     }
 
     @Override
-    public void create(final String groupName, final USER owner, List<USER> memberList, final GroupCallback<GROUP> callback) {
+    public <T extends KiiGroup> void create(final String groupName, final KiiUser owner, List<KiiUser> memberList, final KiiDTO<T> dto, GroupCallback<T> callback) {
         if (memberList == null) { memberList = Collections.emptyList(); }
         
         JSONObject json = new JSONObject();
+        final JSONArray memberArray = new JSONArray();
         try {
             json.put("name", groupName);
             json.put("owner", owner.getId());
-            
-            JSONArray memberArray = new JSONArray();
-            for (KiiBaseUser member : memberList) {
+
+            for (KiiUser member : memberList) {
                 memberArray.put(member.getId());
             }
             json.put("members", memberArray);
         } catch (JSONException e) {
+            callback.onError(new KiiException(2000, e));
             return;
         }
         
-        String url = api.baseUrl + "/apps/" + api.appId + "/groups";
-        api.getHttpClient().sendJsonRequest(Method.POST, url, api.accessToken, 
-                "application/vnd.kii.GroupCreationRequest+json", null, json, new KiiResponseHandler<GroupCallback<GROUP>>(callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + "/groups";
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, mContext.getAccessToken(), "application/vnd.kii.GroupCreationRequest+json", null, json, new KiiResponseHandler<GroupCallback<T>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, GroupCallback<GROUP> callback) {
+            protected void onSuccess(JSONObject response, String etag, GroupCallback<T> callback) {
                 try {
-                    String id = response.getString("groupID");
-                    callback.onSuccess(mGroupFactory.create(id, groupName, owner));
+                    //response.getString("groupID");
+                    response.put("name", groupName);
+                    response.put("owner", owner.getId());
+                    response.put("members", memberArray);
+                    callback.onSuccess(dto.fromJson(response));
                 } catch (JSONException e) {
-                    callback.onError(e);
+                    callback.onError(new KiiException(599, e));
                 }
             }
         });
     }
 
     @Override
-    public void getMembers(GROUP group, final MemberCallback<USER> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + group.getResourcePath() + "/members";
+    public <U extends KiiUser> void getMembers(KiiGroup group, final KiiDTO<U> dto, MemberCallback<U> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + group.getResourcePath() + "/members";
             
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("accept", "application/vnd.kii.MembersRetrievalResponse+json");
         
-        api.getHttpClient().sendJsonRequest(Method.GET, url, api.accessToken, 
-                null, headers, null, new KiiResponseHandler<MemberCallback<USER>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.GET, url, mContext.getAccessToken(), null, headers, null, new KiiResponseHandler<MemberCallback<U>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, MemberCallback<USER> callback) {
+            protected void onSuccess(JSONObject response, String etag, MemberCallback<U> callback) {
                 try {
                     JSONArray array = response.getJSONArray("members");
                     
-                    List<USER> result = new ArrayList<USER>(array.length());
+                    List<U> result = new ArrayList<U>(array.length());
                     for (int i = 0 ; i < array.length() ; ++i) {
                         JSONObject json = array.getJSONObject(i);
                         String id = json.getString("userID");
-                        result.add(mUserFactory.create(id));
+                        json.remove("userID");
+                        json.put("UserID", id);
+                        result.add(dto.fromJson(json));
                     }
                     
                     callback.onSuccess(result);
                 } catch (JSONException e) {
-                    callback.onError(e);
+                    callback.onError(new KiiException(599, e));
                 }
             }
         });
     }
 
     @Override
-    public void addMember(final GROUP group, final USER user, final GroupCallback<GROUP> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + group.getResourcePath() + "/members/" + user.getId();
+    public void addMember(final KiiGroup group, final KiiUser user, GroupCallback<KiiGroup> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + group.getResourcePath() + "/members/" + user.getId();
         
-        api.getHttpClient().sendJsonRequest(Method.PUT, url, api.accessToken, "", null, null, new KiiResponseHandler<GroupCallback<GROUP>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.PUT, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<GroupCallback<KiiGroup>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, GroupCallback<GROUP> callback) {
-                group.getMembers().add(user);
+            protected void onSuccess(JSONObject response, String etag, GroupCallback<KiiGroup> callback) {
+                // group.getMembers().add(user);
                 callback.onSuccess(group);
             }
         });
     }
 
     @Override
-    public void removeMember(final GROUP group, final USER user, final GroupCallback<GROUP> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + group.getResourcePath() + "/members/" + user.getId();
+    public void removeMember(final KiiGroup group, final KiiUser user, GroupCallback<KiiGroup> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + group.getResourcePath() + "/members/" + user.getId();
 
-        api.getHttpClient().sendJsonRequest(Method.DELETE, url, api.accessToken, "", null, null, new KiiResponseHandler<GroupCallback<GROUP>>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.DELETE, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<GroupCallback<KiiGroup>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, GroupCallback<GROUP> callback) {
-                group.getMembers().remove(user);
+            protected void onSuccess(JSONObject response, String etag, GroupCallback<KiiGroup> callback) {
+                // group.getMembers().remove(user);
                 callback.onSuccess(group);
             }
         });
     }
 
     @Override
-    public void changeName(final GROUP group, final String name, final GroupCallback<GROUP> callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + group.getResourcePath() + "/name";
+    public void changeName(final KiiGroup group, String name, GroupCallback<KiiGroup> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + group.getResourcePath() + "/name";
         
-        api.getHttpClient().sendPlainTextRequest(Method.PUT, url, api.accessToken, 
-                null, name, new KiiResponseHandler<GroupCallback<GROUP>>(callback) {
+        mContext.getHttpClient().sendPlainTextRequest(KiiHTTPClient.Method.PUT, url, mContext.getAccessToken(), null, name, new KiiResponseHandler<GroupCallback<KiiGroup>>(callback) {
             @Override
-            protected void onSuccess(JSONObject response, String etag, GroupCallback<GROUP> callback) {
-                callback.onSuccess(mGroupFactory.create(group.getId(), name, group.getOwner()));
+            protected void onSuccess(JSONObject response, String etag, GroupCallback<KiiGroup> callback) {
+                callback.onSuccess(group);
+            }
+        });
+    }
+
+    @Override
+    public void delete(KiiGroup group, KiiItemCallback<Void> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + "/groups/" + group.getId();
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.DELETE, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<KiiItemCallback<Void>>(callback) {
+            @Override
+            protected void onSuccess(JSONObject response, String etag, KiiItemCallback<Void> callback) {
+                callback.onSuccess(null);
             }
         });
     }

@@ -2,10 +2,9 @@ package jp.fkmsoft.libs.kiilib.apis;
 
 import java.util.List;
 
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseBucket;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseObject;
+import jp.fkmsoft.libs.kiilib.entities.KiiObject;
 
-public interface QueryResult<BUCKET extends KiiBaseBucket, OBJECT extends KiiBaseObject<BUCKET>> extends List<OBJECT> {
+public interface QueryResult<T extends KiiObject> extends List<T> {
     String getPaginationKey();
     boolean hasNext();
 }

@@ -4,7 +4,7 @@ import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
 
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient;
+import jp.fkmsoft.libs.kiilib.client.KiiHTTPClient;
 import jp.fkmsoft.libs.kiilib.entities.KiiContext;
 
 /**

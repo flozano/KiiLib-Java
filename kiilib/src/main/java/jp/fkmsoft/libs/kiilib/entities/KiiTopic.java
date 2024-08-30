@@ -1,10 +1,7 @@
 package jp.fkmsoft.libs.kiilib.entities;
 
 /**
- * Just for name
+ * Describes topic entity in Kii Cloud
  */
-public class KiiTopic extends KiiBaseTopic {
-    public KiiTopic(BucketOwnable owner, String name) {
-        super(owner, name);
-    }
+public interface KiiTopic extends AccessControllable {
 }

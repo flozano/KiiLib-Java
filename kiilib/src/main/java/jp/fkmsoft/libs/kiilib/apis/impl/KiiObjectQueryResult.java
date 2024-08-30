@@ -3,15 +3,9 @@ package jp.fkmsoft.libs.kiilib.apis.impl;
 import java.util.ArrayList;
 
 import jp.fkmsoft.libs.kiilib.apis.QueryResult;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseBucket;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseObject;
+import jp.fkmsoft.libs.kiilib.entities.KiiObject;
 
-class KiiObjectQueryResult<BUCKET extends KiiBaseBucket, OBJECT extends KiiBaseObject<BUCKET>> extends ArrayList<OBJECT> implements QueryResult<BUCKET, OBJECT> {
-
-    /**
-     * 
-     */
-    private static final long serialVersionUID = 1L;
+class KiiObjectQueryResult<T extends KiiObject> extends ArrayList<T> implements QueryResult<T> {
 
     private String paginationKey;
     

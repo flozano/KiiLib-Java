@@ -1,70 +1,128 @@
 package jp.fkmsoft.libs.kiilib.apis.impl;
 
-import jp.fkmsoft.libs.kiilib.apis.ACLAPI;
-import jp.fkmsoft.libs.kiilib.apis.AppAPI;
-import jp.fkmsoft.libs.kiilib.apis.BucketAPI;
-import jp.fkmsoft.libs.kiilib.apis.GroupAPI;
-import jp.fkmsoft.libs.kiilib.apis.KiiException;
-import jp.fkmsoft.libs.kiilib.apis.ObjectAPI;
-import jp.fkmsoft.libs.kiilib.apis.TopicAPI;
-import jp.fkmsoft.libs.kiilib.apis.UserAPI;
-import jp.fkmsoft.libs.kiilib.entities.EntityFactory;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseBucket;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseGroup;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseObject;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseTopic;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseUser;
-import jp.fkmsoft.libs.kiilib.entities.KiiUserFactory;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient.Method;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient.ResponseHandler;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import jp.fkmsoft.libs.kiilib.apis.AppAPI;
+import jp.fkmsoft.libs.kiilib.apis.KiiException;
+import jp.fkmsoft.libs.kiilib.apis.KiiResponseHandler;
+import jp.fkmsoft.libs.kiilib.apis.SignupInfo;
+import jp.fkmsoft.libs.kiilib.client.KiiHTTPClient;
+import jp.fkmsoft.libs.kiilib.entities.KiiContext;
+import jp.fkmsoft.libs.kiilib.entities.KiiDTO;
+import jp.fkmsoft.libs.kiilib.entities.KiiUser;
+
 
 /**
- * Implementation of {@link AppAPI}
+ * Implementation
  */
-public abstract class KiiAppAPI<
-        USER extends KiiBaseUser,
-        GROUP extends KiiBaseGroup<USER>,
-        BUCKET extends KiiBaseBucket,
-        OBJECT extends KiiBaseObject<BUCKET>,
-        TOPIC extends KiiBaseTopic
-        > implements AppAPI<USER, GROUP, BUCKET, OBJECT, TOPIC> {
+public class KiiAppAPI implements AppAPI {
 
-    final String appId;
-    final String appKey;
-    final String baseUrl;
-    
-    String accessToken;
-    
-    private final UserAPI<USER> userAPI;
-    private final GroupAPI<USER, GROUP> groupAPI;
-    private final BucketAPI<BUCKET, OBJECT> bucketAPI;
-    private final ObjectAPI<BUCKET, OBJECT> objectAPI;
-    private final TopicAPI<TOPIC> topicAPI;
-    private final ACLAPI aclAPI;
+    private final KiiContext mContext;
 
-    private final KiiUserFactory<USER> mUserFactory;
-    
-    protected KiiAppAPI(String appId, String appKey, String baseUrl) {
-        this.appId = appId;
-        this.appKey = appKey;
-        this.baseUrl = baseUrl;
-
-        EntityFactory<USER, GROUP, BUCKET, OBJECT, TOPIC> factory = getEntityFactory();
-        mUserFactory = factory.getKiiUserFactory();
-
-        userAPI = new KiiUserAPI<USER>(this, factory.getKiiUserFactory());
-        groupAPI = new KiiGroupAPI<USER, GROUP>(this, factory.getKiiUserFactory(), factory.getKiiGroupFactory());
-        bucketAPI = new KiiBucketAPI<BUCKET, OBJECT>(this, factory.getKiiObjectFactory());
-        objectAPI = new KiiObjectAPI<BUCKET, OBJECT>(this, factory.getKiiObjectFactory());
-        topicAPI = new KiiTopicAPI<TOPIC>(this, factory.getKiitopicFactory());
-        aclAPI = new KiiACLAPI<USER, GROUP>(this, factory.getKiiUserFactory(), factory.getKiiGroupFactory());
+    public KiiAppAPI(KiiContext context) {
+        mContext = context;
     }
 
+    @Override
+    public <T extends KiiUser> void loginAsAdmin(String clientId, String clientSecret, final KiiDTO<T> dto, final LoginCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/oauth2/token";
+
+        JSONObject json = new JSONObject();
+        try {
+            json.put("client_id", clientId);
+            json.put("client_secret", clientSecret);
+        } catch (JSONException e) {
+            callback.onError(new KiiException(2000, e));
+            return;
+        }
+
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, null, "application/json", null, json, new KiiHTTPClient.ResponseHandler() {
+            @Override
+            public void onResponse(int status, JSONObject response, String etag) {
+                if (status < 300) {
+                    success(response);
+                } else {
+                    callback.onError(new KiiException(status, response));
+                }
+            }
+
+            private void success(JSONObject response) {
+                try {
+                    String token = response.getString("access_token");
+                    // String userId = response.getString("id");
+                    mContext.setAccessToken(token);
+                    callback.onSuccess(token, dto.fromJson(response));
+                } catch (JSONException e) {
+                    callback.onError(new KiiException(599, e));
+                }
+            }
+
+            @Override
+            public void onException(Exception e) {
+                callback.onError(new KiiException(599, e));
+            }
+        });
+    }
+
+    @Override
+    public <T extends KiiUser> void loginAsUser(String identifier, String password, final KiiDTO<T> dto, LoginCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/oauth2/token";
+
+        JSONObject json = new JSONObject();
+        try {
+            json.put("username", identifier);
+            json.put("password", password);
+        } catch (JSONException e) {
+            callback.onError(new KiiException(2000, e));
+            return;
+        }
+
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, null, "application/json", null, json, new KiiResponseHandler<LoginCallback<T>>(callback) {
+            @Override
+            protected void onSuccess(JSONObject response, String etag, LoginCallback<T> callback) {
+                try {
+                    String token = response.getString("access_token");
+                    String userId = response.getString("id");
+                    mContext.setAccessToken(token);
+
+                    response.remove("access_token");
+                    response.put("UserID", userId);
+                    callback.onSuccess(token, dto.fromJson(response));
+                } catch (JSONException e) {
+                    callback.onError(new KiiException(599, e));
+                }
+            }
+        });
+    }
+
+    @Override
+    public <T extends KiiUser> void signup(SignupInfo info, String password, final KiiDTO<T> dto, SignupCallback<T> callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + "/users";
+
+        JSONObject json = info.toJson();
+        try {
+            json.put("password", password);
+        } catch (JSONException e) {
+            callback.onError(new KiiException(2000, e));
+            return;
+        }
+
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.POST, url, null, "application/json", null, json, new KiiResponseHandler<SignupCallback<T>>(callback) {
+            @Override
+            protected void onSuccess(JSONObject response, String etag, SignupCallback<T> callback) {
+                try {
+                    String userId = response.getString("userID");
+                    response.put("id", userId);
+                    callback.onSuccess(dto.fromJson(response));
+                } catch (JSONException e) {
+                    callback.onError(new KiiException(599, e));
+                }
+            }
+        });
+    }
+
+/*
     @Override
     public void loginAsAdmin(String clientId, String clientSecret, final LoginCallback<USER> callback) {
         String url = baseUrl + "/oauth2/token";
@@ -160,52 +218,5 @@ public abstract class KiiAppAPI<
             }
         });
     }
-    
-    /*
-     * (non-Javadoc)
-     * @see com.kii.cloud.KiiAPI#setAccessToken(java.lang.String)
-     */
-    @Override
-    public void setAccessToken(String accessToken) {
-        this.accessToken = accessToken;
-    }
-
-    @Override
-    public String getAccessToken() {
-        return accessToken;
-    }
-
-    @Override
-    public UserAPI<USER> userAPI() {
-        return userAPI;
-    }
-
-    @Override
-    public GroupAPI<USER, GROUP> groupAPI() {
-        return groupAPI;
-    }
-
-    @Override
-    public BucketAPI<BUCKET, OBJECT> bucketAPI() {
-        return bucketAPI;
-    }
-
-    @Override
-    public ObjectAPI<BUCKET, OBJECT> objectAPI() {
-        return objectAPI;
-    }
-
-    @Override
-    public TopicAPI<TOPIC> topicAPI() {
-        return topicAPI;
-    }
-
-    @Override
-    public ACLAPI aclAPI() {
-        return aclAPI;
-    }
-    
-    public abstract KiiHTTPClient getHttpClient();
-
-    protected abstract EntityFactory<USER, GROUP, BUCKET, OBJECT, TOPIC> getEntityFactory();
+*/
 }

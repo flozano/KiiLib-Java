@@ -1,5 +1,9 @@
 package jp.fkmsoft.libs.kiilib.apis.impl;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -7,40 +11,32 @@ import java.util.List;
 import java.util.Map;
 
 import jp.fkmsoft.libs.kiilib.apis.ACLAPI;
+import jp.fkmsoft.libs.kiilib.apis.KiiException;
+import jp.fkmsoft.libs.kiilib.apis.KiiResponseHandler;
+import jp.fkmsoft.libs.kiilib.client.KiiHTTPClient;
 import jp.fkmsoft.libs.kiilib.entities.ACLSubject;
 import jp.fkmsoft.libs.kiilib.entities.AccessControllable;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseGroup;
-import jp.fkmsoft.libs.kiilib.entities.KiiBaseUser;
-import jp.fkmsoft.libs.kiilib.entities.KiiGroupFactory;
-import jp.fkmsoft.libs.kiilib.entities.KiiUserFactory;
-import jp.fkmsoft.libs.kiilib.http.KiiHTTPClient.Method;
+import jp.fkmsoft.libs.kiilib.entities.KiiContext;
+import jp.fkmsoft.libs.kiilib.entities.KiiDTO;
+import jp.fkmsoft.libs.kiilib.entities.KiiGroup;
+import jp.fkmsoft.libs.kiilib.entities.KiiUser;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+public class KiiACLAPI implements ACLAPI {
 
-class KiiACLAPI<USER extends KiiBaseUser, GROUP extends KiiBaseGroup<USER>> implements ACLAPI {
+    private final KiiContext mContext;
 
-    private final KiiAppAPI api;
-    private final KiiUserFactory<USER> mUserFactory;
-    private final KiiGroupFactory<USER, GROUP> mGroupFactory;
-
-    
-    KiiACLAPI(KiiAppAPI api, KiiUserFactory<USER> userFactory, KiiGroupFactory<USER, GROUP> groupFactory) {
-        this.api = api;
-        this.mUserFactory = userFactory;
-        this.mGroupFactory = groupFactory;
+    public KiiACLAPI(KiiContext context) {
+        mContext = context;
     }
-    
-    @Override
-    public void get(AccessControllable object, final ACLGetCallback callback) {
 
-        String url = api.baseUrl + "/apps/" + api.appId + object.getResourcePath() + "/acl";
+    @Override
+    public <T extends KiiUser, U extends KiiGroup> void get(AccessControllable object, final KiiDTO<T> userDTO, final KiiDTO<U> groupDTO, ACLGetCallback callback) {
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + object.getResourcePath() + "/acl";
         
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("accept", "*");
         
-        api.getHttpClient().sendJsonRequest(Method.GET, url, api.accessToken, null, headers, null, new KiiResponseHandler<ACLGetCallback>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.GET, url, mContext.getAccessToken(), null, headers, null, new KiiResponseHandler<ACLGetCallback>(callback) {
             @Override
             protected void onSuccess(JSONObject response, String etag, ACLGetCallback callback) {
                 try {
@@ -55,7 +51,7 @@ class KiiACLAPI<USER extends KiiBaseUser, GROUP extends KiiBaseGroup<USER>> impl
                     }
                     callback.onSuccess(map);
                 } catch (JSONException e) {
-                     callback.onError(e);
+                     callback.onError(new KiiException(599, e));
                 }
             }
             
@@ -65,23 +61,24 @@ class KiiACLAPI<USER extends KiiBaseUser, GROUP extends KiiBaseGroup<USER>> impl
                     JSONObject item = array.getJSONObject(i);
                     if (item.has("userID")) {
                         String id = item.getString("userID");
-                        list.add(mUserFactory.create(id));
+                        item.put("UserID", id);
+                        item.remove("userID");
+                        list.add(userDTO.fromJson(item));
                     } else if (item.has("groupID")) {
-                        String id = item.getString("groupID");
-                        list.add(mGroupFactory.create(id, "", null));
+                        list.add(groupDTO.fromJson(item));
                     }
                 }
                 return list;
             }
         });
     }
-    
+
     @Override
     public void grant(final AccessControllable object, String action, ACLSubject subject, final ACLCallback callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + object.getResourcePath() + "/acl/" + action + 
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + object.getResourcePath() + "/acl/" + action +
                 "/" + subject.getSubjectType() + ":" + subject.getId();
         
-        api.getHttpClient().sendJsonRequest(Method.PUT, url, api.accessToken, null, null, null, new KiiResponseHandler<ACLCallback>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.PUT, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<ACLCallback>(callback) {
             @Override
             protected void onSuccess(JSONObject response, String etag, ACLCallback callback) {
                 callback.onSuccess(object);
@@ -91,10 +88,10 @@ class KiiACLAPI<USER extends KiiBaseUser, GROUP extends KiiBaseGroup<USER>> impl
 
     @Override
     public void revoke(final AccessControllable object, String action, ACLSubject subject, final ACLCallback callback) {
-        String url = api.baseUrl + "/apps/" + api.appId + object.getResourcePath() + "/acl/" + action + 
+        String url = mContext.getBaseUrl() + "/apps/" + mContext.getAppId() + object.getResourcePath() + "/acl/" + action +
                 "/" + subject.getSubjectType() + ":" + subject.getId();
         
-        api.getHttpClient().sendJsonRequest(Method.DELETE, url, api.accessToken, null, null, null, new KiiResponseHandler<ACLCallback>(callback) {
+        mContext.getHttpClient().sendJsonRequest(KiiHTTPClient.Method.DELETE, url, mContext.getAccessToken(), null, null, null, new KiiResponseHandler<ACLCallback>(callback) {
             @Override
             protected void onSuccess(JSONObject response, String etag, ACLCallback callback) {
                 callback.onSuccess(object);

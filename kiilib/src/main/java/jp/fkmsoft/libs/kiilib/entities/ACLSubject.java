@@ -1,6 +1,5 @@
 package jp.fkmsoft.libs.kiilib.entities;
 
-public interface ACLSubject{
+public interface ACLSubject extends KiiEntity {
     String getSubjectType();
-    String getId();
 }
